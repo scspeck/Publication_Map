@@ -1,8 +1,6 @@
-# Kansas Host–Parasite Atlas
+# Kansas State Biorepository Host-Parasite Atlas
 
-The **Kansas Host–Parasite Atlas** is an interactive, specimen-based web resource for exploring associations between museum-vouchered hosts and independently cataloged parasite records. The atlas is designed as a discovery, visualization, and reproducible filtering interface while preserving links to the underlying natural history collection records.
-
-> **Release status:** Development build. The current demonstration dataset is suitable for testing the atlas architecture, but the coordinate workflow described under **Known limitations** should be resolved or explicitly retained in the methods before a formal data release is cited in a publication.
+The **Kansas State Biorepository Host-Parasite Atlas** is an interactive, specimen-based web resource for exploring associations between museum-vouchered hosts and independently cataloged parasite records. The atlas is designed as a discovery, visualization, and reproducible filtering interface while preserving links to the underlying natural history collection records.
 
 ## Scientific purpose
 
@@ -73,12 +71,6 @@ Museum data are shaped by collecting effort, sampling design, geography, time, d
 - taxonomic identifications may change after an atlas release is generated; and
 - source records may be corrected or augmented after the atlas snapshot is created.
 
-### Coordinate limitation in the current development dataset
-
-The current development dataset was generated from a parasite-record export rather than a separate authoritative host-record export. Host map coordinates are therefore inferred from coordinates associated with parasite records linked to each host. This is appropriate for testing the relational architecture but should not be silently treated as authoritative host georeferencing.
-
-Before a formal publication release, the preferred workflow is to obtain host coordinates directly from the authoritative host records. If the inferred-coordinate approach is retained, it should be described explicitly in the manuscript methods and data documentation.
-
 ## Reproducibility and versioning
 
 A publication-associated release should be frozen and versioned rather than allowing the paper to point only to a continuously changing website. Recommended release procedure:
@@ -130,51 +122,3 @@ The source code in this repository is released under the MIT License. This softw
 Kansas State University Biorepository  
 Kansas State University
 
-For project-specific contact information, add the corresponding author and institutional email before the public release.
-
-
-## Geography in release 0.9.1
-
-Country, state/province, locality, coordinates, and coordinate uncertainty in this
-development release are derived from the **linked parasite specimen records**.
-These fields are used to provide geographic context for host–parasite associations
-and to support Country and State/Province filters. They are not presented as an
-independent retrieval of authoritative host geography.
-
-A planned future release will use each host GUID to retrieve and join the
-authoritative host specimen record. That workflow will allow host taxonomy,
-geography, dates, and other host metadata to be derived directly from the host
-record while preserving the parasite record as an independently cataloged object.
-
-
-## Compact geography architecture (release 0.9.2)
-
-Release 0.9.2 restores the shared-string compact representation for geography.
-Country, state/province, locality, specimen GUIDs, taxonomic labels, and other
-repeated text values are stored once in the shared string table and referenced
-by integer ID.
-
-The resulting `data/atlas.json` is approximately **8.22 MB**
-uncompressed while retaining Country → State/Province filtering and geographic
-fields in the filtered CSV download.
-
-The geographic provenance is unchanged from release 0.9.1: geography is derived
-from linked parasite records pending future authoritative-host integration.
-
-
-## Source-record accounting (release 0.9.3)
-
-The Arctos export used for this build contains **53,870**
-parasite records. Of these, **51,505**
-contain a `parasite of` relationship. The host-centered atlas incorporates
-**51,376** parasite records for which that
-relationship contains a resolvable Arctos-style host GUID.
-
-An additional **129**
-records contain a `parasite of` relationship expressed through another identifier
-(e.g., institutional catalog number, collector number, ARK, or bare identifier)
-rather than a resolvable Arctos host GUID. These are not assigned invented host
-identifiers and are excluded from the mapped host-centered associations. They are
-listed in `data/unresolved_host_relationships.csv` for audit and future resolution.
-
-The dual-handle collection-year slider has also been restored.
