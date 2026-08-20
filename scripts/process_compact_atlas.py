@@ -1,45 +1,65 @@
 #!/usr/bin/env python3
 """
-Build the compact Kansas Host–Parasite Atlas from an Arctos parasite export.
+Build a compact host-centered Kansas Host–Parasite Atlas from an Arctos
+parasite-record export.
 
-CURRENT GEOGRAPHY MODEL
-Country/state/locality/coordinates are taken from the PARASITE record.
-They provide geographic context for the host–parasite association. They are
-not independently retrieved authoritative host metadata. A future release
-should join host GUIDs to authoritative host records.
+Release 0.9.2 geography model
+-----------------------------
+Country, state/province, locality, coordinates, and coordinate uncertainty
+are derived from the linked PARASITE record in this interim release.
+
+A future release should retrieve authoritative host records by host GUID
+and replace inferred host geography/taxonomy with authoritative host data.
+
+Compact atlas.json structure
+----------------------------
+s = shared strings
+p = parasite metadata
+h = host metadata
+r = host-parasite relationship rows
+summary = release summary
+
+Repeated strings such as country, state/province, locality, taxonomy, and
+GUIDs are stored only once in s and referenced by integer ID.
 """
 from pathlib import Path
 import pandas as pd
 import re, json, sys
+from collections import Counter
 
 src = Path(sys.argv[1])
 out = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("data")
 out.mkdir(parents=True, exist_ok=True)
 
-usecols = [
+wanted = {
     "GUID","SCIENTIFIC_NAME","COUNTRY","STATE_PROV","SPEC_LOCALITY",
     "VERBATIM_DATE","DEC_LAT","DEC_LONG","COORDINATEUNCERTAINTYINMETERS",
     "ATTRIBUTEDETAIL","KINGDOM","PHYLUM","PHYLCLASS","PHYLORDER","FAMILY",
     "GENUS","SPECIES","RELATEDCATALOGEDITEMS"
-]
-df = pd.read_csv(src, usecols=lambda c: c in usecols, low_memory=False).fillna("")
+}
+
+df = pd.read_csv(
+    src,
+    usecols=lambda c: c in wanted,
+    low_memory=False
+)
 
 def clean(x):
+    if pd.isna(x):
+        return ""
     return str(x).strip()
 
-def year_from(x):
+def explicit_year(x):
     m = re.search(r'(?<!\d)(1[5-9]\d{2}|20\d{2})(?!\d)', clean(x))
-    return int(m.group(1)) if m else None
+    return int(m.group(1)) if m else -1
 
-# Robustly find host GUID(s) associated with "parasite of".
 guid_re = re.compile(r'\b[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+:\d+\b')
+
 def host_guids(text):
     text = clean(text)
     if not text:
         return []
     found = []
-    # Split common Arctos multi-relationship delimiters, but fall back to
-    # searching the entire field when needed.
     chunks = re.split(r'[|;\n]+', text)
     for chunk in chunks:
         if re.search(r'parasite\s+of', chunk, re.I):
@@ -48,89 +68,221 @@ def host_guids(text):
         found.extend(guid_re.findall(text))
     return list(dict.fromkeys(found))
 
-# Attribute helpers: preserve the complete attribute text while extracting
-# commonly used parasite-specific values when their labels are present.
-def attr_value(text, labels):
-    text = clean(text)
-    for lab in labels:
-        m = re.search(rf'(?:^|[|;])\s*{re.escape(lab)}\s*[:=]\s*([^|;]+)', text, re.I)
-        if m:
-            return m.group(1).strip()
+def safe_attrs(v):
+    text = clean(v)
+    if not text:
+        return []
+    try:
+        x = json.loads(text)
+        return x if isinstance(x, list) else []
+    except Exception:
+        return []
+
+def first_attr(attrs, name):
+    lname = name.lower()
+    for a in attrs:
+        if str(a.get("attribute_type","")).strip().lower() == lname:
+            value = a.get("attribute_value")
+            if value not in (None, ""):
+                return str(value).strip()
     return ""
 
+# Shared string table.
+strings = []
+string_to_id = {}
+
+def sid(value):
+    value = clean(value)
+    if not value:
+        return -1
+    if value not in string_to_id:
+        string_to_id[value] = len(strings)
+        strings.append(value)
+    return string_to_id[value]
+
 parasites = []
-hosts = {}
-relations = []
+hosts_temp = {}
+relationships = []
 
 for _, row in df.iterrows():
-    p_guid = clean(row.get("GUID",""))
+    pguid = clean(row.get("GUID",""))
     hguids = host_guids(row.get("RELATEDCATALOGEDITEMS",""))
-    if not p_guid or not hguids:
+    if not pguid or not hguids:
         continue
 
-    p = {
-        "guid": p_guid,
-        "name": clean(row.get("SCIENTIFIC_NAME","")),
-        "kingdom": clean(row.get("KINGDOM","")),
-        "phylum": clean(row.get("PHYLUM","")),
-        "class": clean(row.get("PHYLCLASS","")),
-        "order": clean(row.get("PHYLORDER","")),
-        "family": clean(row.get("FAMILY","")),
-        "genus": clean(row.get("GENUS","")),
-        "species": clean(row.get("SPECIES","")),
-        "year": year_from(row.get("VERBATIM_DATE","")),
-        "country": clean(row.get("COUNTRY","")),
-        "state_province": clean(row.get("STATE_PROV","")),
-        "locality": clean(row.get("SPEC_LOCALITY","")),
-        "latitude": pd.to_numeric(row.get("DEC_LAT",""), errors="coerce"),
-        "longitude": pd.to_numeric(row.get("DEC_LONG",""), errors="coerce"),
-        "coordinate_uncertainty_m": pd.to_numeric(row.get("COORDINATEUNCERTAINTYINMETERS",""), errors="coerce"),
-        "location_in_host": attr_value(row.get("ATTRIBUTEDETAIL",""), ["location in host","location"]),
-        "life_stage": attr_value(row.get("ATTRIBUTEDETAIL",""), ["life stage"]),
-        "sex": attr_value(row.get("ATTRIBUTEDETAIL",""), ["sex"]),
-        "individual_count": attr_value(row.get("ATTRIBUTEDETAIL",""), ["individual count","count"]),
-        "attribute_detail": clean(row.get("ATTRIBUTEDETAIL",""))
-    }
-    # JSON cannot contain NaN.
-    for k in ("latitude","longitude","coordinate_uncertainty_m"):
-        if pd.isna(p[k]): p[k] = None
+    attrs = safe_attrs(row.get("ATTRIBUTEDETAIL",""))
 
+    lat = pd.to_numeric(row.get("DEC_LAT",""), errors="coerce")
+    lon = pd.to_numeric(row.get("DEC_LONG",""), errors="coerce")
+    unc = pd.to_numeric(row.get("COORDINATEUNCERTAINTYINMETERS",""), errors="coerce")
+
+    lat = None if pd.isna(lat) else round(float(lat), 5)
+    lon = None if pd.isna(lon) else round(float(lon), 5)
+    unc = None if pd.isna(unc) else round(float(unc), 2)
+
+    # p row positions:
+    # 0 guid
+    # 1 scientific name
+    # 2 kingdom
+    # 3 phylum
+    # 4 class
+    # 5 order
+    # 6 family
+    # 7 genus
+    # 8 species
+    # 9 year
+    # 10 country
+    # 11 state/province
+    # 12 locality
+    # 13 latitude
+    # 14 longitude
+    # 15 coordinate uncertainty (m)
+    # 16 location in host
+    # 17 life stage
+    # 18 parasite sex
+    # 19 individual count
     pid = len(parasites)
-    parasites.append(p)
+    parasites.append([
+        sid(pguid),
+        sid(row.get("SCIENTIFIC_NAME","")),
+        sid(row.get("KINGDOM","")),
+        sid(row.get("PHYLUM","")),
+        sid(row.get("PHYLCLASS","")),
+        sid(row.get("PHYLORDER","")),
+        sid(row.get("FAMILY","")),
+        sid(row.get("GENUS","")),
+        sid(row.get("SPECIES","")),
+        explicit_year(row.get("VERBATIM_DATE","")),
+        sid(row.get("COUNTRY","")),
+        sid(row.get("STATE_PROV","")),
+        sid(row.get("SPEC_LOCALITY","")),
+        lat,
+        lon,
+        unc,
+        sid(first_attr(attrs, "location in host")),
+        sid(first_attr(attrs, "life stage")),
+        sid(first_attr(attrs, "sex")),
+        sid(first_attr(attrs, "individual count"))
+    ])
 
     for hg in hguids:
-        h = hosts.setdefault(hg, {
-            "guid": hg,
-            "collection": ":".join(hg.split(":")[:2]) if ":" in hg else "",
-            "group": hg.split(":")[1] if hg.count(":") >= 2 else "",
-            "taxon": "",
-            "latitude": None, "longitude": None,
-            "country": "", "state_province": "", "locality": ""
-        })
-        # Interim host display geography is inferred from the linked parasite.
-        if h["latitude"] is None and p["latitude"] is not None:
-            h["latitude"], h["longitude"] = p["latitude"], p["longitude"]
-        if not h["country"]: h["country"] = p["country"]
-        if not h["state_province"]: h["state_province"] = p["state_province"]
-        if not h["locality"]: h["locality"] = p["locality"]
-        relations.append([hg, pid])
+        if hg not in hosts_temp:
+            parts = hg.split(":")
+            hosts_temp[hg] = {
+                "collection": ":".join(parts[:2]) if len(parts) >= 2 else hg,
+                "group": parts[1] if len(parts) >= 3 else "",
+                "taxa": Counter(),
+                "coords": [],
+                "countries": Counter(),
+                "states": Counter(),
+                "localities": Counter()
+            }
 
-host_list = list(hosts.values())
-hid = {h["guid"]: i for i,h in enumerate(host_list)}
-rel = [[hid[hg], pid] for hg,pid in relations]
+        ht = hosts_temp[hg]
 
-atlas = {"hosts":host_list, "parasites":parasites, "relations":rel}
-(out/"atlas.json").write_text(json.dumps(atlas, separators=(",",":")), encoding="utf-8")
+        host_taxon = first_attr(attrs, "verbatim host ID")
+        if host_taxon:
+            ht["taxa"][host_taxon] += 1
+
+        if lat is not None and lon is not None:
+            ht["coords"].append((lat, lon))
+
+        c = clean(row.get("COUNTRY",""))
+        st = clean(row.get("STATE_PROV",""))
+        loc = clean(row.get("SPEC_LOCALITY",""))
+        if c: ht["countries"][c] += 1
+        if st: ht["states"][st] += 1
+        if loc: ht["localities"][loc] += 1
+
+        relationships.append([hg, pid])
+
+hosts = []
+host_id = {}
+
+for hg, ht in hosts_temp.items():
+    hid = len(hosts)
+    host_id[hg] = hid
+
+    if ht["coords"]:
+        # Representative point for the current interim geography model.
+        lat = round(sum(x[0] for x in ht["coords"]) / len(ht["coords"]), 5)
+        lon = round(sum(x[1] for x in ht["coords"]) / len(ht["coords"]), 5)
+    else:
+        lat = lon = None
+
+    taxon = ht["taxa"].most_common(1)[0][0] if ht["taxa"] else ""
+    country = ht["countries"].most_common(1)[0][0] if ht["countries"] else ""
+    state = ht["states"].most_common(1)[0][0] if ht["states"] else ""
+    locality = ht["localities"].most_common(1)[0][0] if ht["localities"] else ""
+
+    # h row positions:
+    # 0 guid
+    # 1 host taxon (interim: verbatim host ID)
+    # 2 collection
+    # 3 broad group
+    # 4 latitude
+    # 5 longitude
+    # 6 country
+    # 7 state/province
+    # 8 locality
+    hosts.append([
+        sid(hg),
+        sid(taxon),
+        sid(ht["collection"]),
+        sid(ht["group"]),
+        lat,
+        lon,
+        sid(country),
+        sid(state),
+        sid(locality)
+    ])
+
+rels = [[host_id[hg], pid] for hg, pid in relationships]
+
+countries = sorted({
+    strings[p[10]] for p in parasites if p[10] != -1
+})
+states = sorted({
+    strings[p[11]] for p in parasites if p[11] != -1
+})
+years = [p[9] for p in parasites if p[9] != -1]
 
 summary = {
     "source_file": src.name,
     "parasite_records_with_host_relationships": len(parasites),
-    "unique_hosts": len(host_list),
-    "host_parasite_associations": len(rel),
-    "countries": sorted({p["country"] for p in parasites if p["country"]}),
-    "states_provinces": sorted({p["state_province"] for p in parasites if p["state_province"]}),
-    "geography_provenance": "Country, state/province, locality and coordinates are derived from linked parasite records in this release.",
-    "future_development": "Join host GUIDs to authoritative host records and use authoritative host taxonomy and geography."
+    "unique_hosts": len(hosts),
+    "host_parasite_associations": len(rels),
+    "unique_host_taxa": len({
+        strings[h[1]] for h in hosts if h[1] != -1
+    }),
+    "countries": len(countries),
+    "states_provinces": len(states),
+    "min_year": min(years) if years else None,
+    "max_year": max(years) if years else None,
+    "geography_provenance":
+        "Country, state/province, locality, coordinates, and coordinate "
+        "uncertainty are derived from linked parasite records in this release.",
+    "future_development":
+        "Retrieve authoritative host records by host GUID and use authoritative "
+        "host taxonomy, geography, dates, and additional host metadata."
 }
-(out/"summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+atlas = {
+    "s": strings,
+    "p": parasites,
+    "h": hosts,
+    "r": rels,
+    "summary": summary
+}
+
+(out/"atlas.json").write_text(
+    json.dumps(atlas, separators=(",",":")),
+    encoding="utf-8"
+)
+
+(out/"summary.json").write_text(
+    json.dumps(summary, indent=2),
+    encoding="utf-8"
+)
+
 print(json.dumps(summary, indent=2))
