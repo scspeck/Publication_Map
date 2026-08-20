@@ -2,17 +2,17 @@
 
 ## Overview
 
-The Kansas Host–Parasite Atlas uses a host-centered relational model to visualize museum-vouchered host–parasite associations. The web application is static and browser-based; preprocessing is performed before deployment so the client does not need to query the source collection database for every interaction.
+The Kansas State Biorepository Host-Parasite Atlas uses a host-centered relational model to visualize museum-vouchered host–parasite associations. The web application is static and browser-based; preprocessing is performed before deployment, so the user does not need to query the source collection database for every interaction.
 
 ## Source records
 
 The development workflow begins with an Arctos export of parasite specimen records containing specimen GUIDs, taxonomic fields, collection dates, coordinates, related-cataloged-item relationships, and selected specimen attributes. The processing script identifies relationships explicitly labeled `parasite of` and uses the related GUID as the host identifier.
 
-For a publication release, document here the exact Arctos query, export date, collections included, record count, fields requested, and any exclusion criteria.
+Data acquisition. Parasite specimens were downloaded from the Museum of Southwestern Biology Parasite Collection (MSB:Para) through Arctos on 8/20/2026. The Arctos catalog search was restricted to only records within MSB:Para, with no additional taxonomic restrictions. The resulting export contained 53,870 parasite specimen records. Exported fields are listed within "Data_Dictionary.md". Records were not excluded from the source export; during the subsequent processing, only records containing an explicit `parasite of` relationship with a resolvable Arctos host GUID were incorporated into the atlas. Of the 53,870 source records, 51,505 contained a `parasite of` relationship, 51,376 could be resolved to an Arctos host GUID, and 129 contained a `parasite of` relationship without a resolvable host GUID. Records lacking a resolvable host GUID were retained in an audit table but not mapped as host-parasite associations.
 
-## Host–parasite relationships
+## Host-parasite relationships
 
-A host–parasite association is retained when a parasite record contains an Arctos related-cataloged-item relationship identified as `parasite of`. Host and parasite GUIDs are preserved as persistent record identifiers in the derived atlas dataset.
+A host-parasite association is retained when a parasite record contains an Arctos related-cataloged-item relationship identified as `parasite of`. Host and parasite GUIDs are preserved as persistent record identifiers in the derived atlas dataset.
 
 ## Taxonomy
 
@@ -27,8 +27,6 @@ The processing script extracts an explicit four-digit year from the verbatim dat
 ## Spatial data
 
 In the development dataset, host coordinates are inferred from coordinates associated with linked parasite records. When multiple linked parasite coordinates are available for a host, the processing script currently derives a representative host coordinate from those linked values.
-
-For a publication release, authoritative host-record coordinates are preferred. Coordinate uncertainty, georeferencing method, datum, locality restrictions, and sensitive-data handling should be documented if they are relevant to the released dataset.
 
 ## Compact representation
 
@@ -48,11 +46,6 @@ Each mapped marker represents one host record with mappable coordinates. Marker 
 ## Filtered export
 
 The browser can generate a CSV from the active filters without requiring a server-side process. Each output row represents one host–parasite association and includes host identifiers, host taxon and collection, coordinates, parasite identifiers and taxonomy, collection year, and selected parasite attributes.
-
-## Quality-control recommendations for a publication release
-
-Before freezing a release, verify: duplicate GUID handling; relationship parsing; missing and malformed dates; coordinate validity; taxonomic rank consistency; host identification provenance; counts of source records, unique hosts, parasites, and associations; agreement between filtered map results and CSV exports; and a random sample of atlas records against their authoritative source records.
-
 
 ## Interim geographic filtering (release 0.9.1)
 
