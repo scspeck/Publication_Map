@@ -4,141 +4,382 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Kansas Host–Parasite Atlas</title>
+
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+
 <style>
-html,body{height:100%;margin:0;font-family:Arial,sans-serif} #app{height:100%;display:grid;grid-template-columns:330px 1fr}
-aside{padding:18px;overflow:auto;border-right:1px solid #ddd;background:#fafafa} #map{height:100%}
-h1{font-size:1.45rem;margin:.2rem 0}.small{font-size:.82rem;line-height:1.4;color:#444}
-label{display:block;font-weight:700;margin-top:13px;font-size:.83rem} select,input,button{width:100%;box-sizing:border-box;padding:8px;margin-top:4px}
-button{cursor:pointer}.stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:14px 0}.stat{background:white;border:1px solid #ddd;padding:8px}
-.stat strong{display:block;font-size:1.1rem}.stat span{font-size:.72rem;color:#555}details{margin-top:15px}.warn{background:#fff;border:1px solid #ccc;padding:9px;margin-top:12px}
-@media(max-width:750px){#app{grid-template-columns:1fr;grid-template-rows:48% 52%}aside{border-right:0;border-bottom:1px solid #ddd}}
+:root{--border:#d9e0e4;--muted:#68737a;--panel:#fff;--bg:#f3f5f6;--text:#1d252c;--host:#2e7d4f}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:Arial,Helvetica,sans-serif;color:var(--text);background:var(--bg)}
+body{display:grid;grid-template-columns:370px 1fr}
+aside{padding:20px;background:var(--panel);border-right:1px solid var(--border);overflow:auto;z-index:1001}
+#map{height:100vh;width:100%}
+h1{font-size:1.4rem;margin:0 0 4px}.subtitle{color:var(--muted);font-size:.85rem;line-height:1.45;margin-bottom:15px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0 18px}
+.stat{border:1px solid var(--border);background:#f7f9fa;border-radius:8px;padding:9px}
+.stat strong{display:block;font-size:1.15rem}.stat span{color:var(--muted);font-size:.73rem}
+label.section{display:block;font-weight:700;font-size:.84rem;margin:14px 0 5px}
+select,input[type=text],input[type=number]{width:100%;padding:8px 9px;border:1px solid #bac4ca;border-radius:6px;background:#fff}
+.twocol{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+button{padding:9px 10px;border:0;border-radius:6px;cursor:pointer;width:100%;margin-top:10px}
+#reset{background:#29353d;color:#fff}.download{background:#ededed;color:#111}
+.small{color:var(--muted);font-size:.75rem;line-height:1.45}
+.legend{margin-top:17px;padding-top:12px;border-top:1px solid var(--border);font-size:.82rem}
+.dot{width:11px;height:11px;display:inline-block;border-radius:50%;margin-right:6px;vertical-align:-1px;background:var(--host)}
+.popup-guid{font-family:monospace;color:#59656d;font-size:.77rem}.popup-section{margin-top:9px}
+.leaflet-popup-content{min-width:270px;max-width:390px;max-height:430px;overflow:auto}
+details summary{cursor:pointer}a{color:#245d8c}
+#loadError{display:none;background:#fff2f0;border:1px solid #c86c61;padding:9px;border-radius:6px;font-size:.82rem;margin-bottom:10px}
+@media(max-width:800px){body{display:block}aside{height:auto;border-right:0;border-bottom:1px solid var(--border)}#map{height:72vh}}
 </style>
 </head>
-<body><div id="app"><aside>
+<body>
+<aside>
 <h1>Kansas Host–Parasite Atlas</h1>
-<p class="small">Specimen-based exploration of cataloged host–parasite associations.</p>
-<div class="stats">
-<div class="stat"><strong id="nHosts">—</strong><span>host records</span></div>
-<div class="stat"><strong id="nParasites">—</strong><span>parasite records</span></div>
-<div class="stat"><strong id="nLinks">—</strong><span>associations</span></div>
-<div class="stat"><strong id="nVisible">—</strong><span>visible hosts</span></div>
+<div class="subtitle">
+An interactive, specimen-based resource for exploring host–parasite associations represented in natural history collections.
 </div>
 
-<label>Country</label><select id="country"><option value="">All countries</option></select>
-<label>State / Province</label><select id="state"><option value="">All states / provinces</option></select>
-<label>Parasite family</label><select id="family"><option value="">All families</option></select>
-<label>Parasite genus</label><select id="genus"><option value="">All genera</option></select>
-<label>Parasite species</label><select id="species"><option value="">All species</option></select>
-<label>Collection year</label>
-<div style="display:flex;gap:6px"><input id="y0" type="number" placeholder="Start"><input id="y1" type="number" placeholder="End"></div>
-<label>GUID / taxon search</label><input id="q" type="search" placeholder="Search host or parasite">
+<div id="loadError">The data file could not be loaded. Use GitHub Pages or a local web server.</div>
+
+<div class="stats">
+  <div class="stat"><strong id="nParasites">—</strong><span>parasite records</span></div>
+  <div class="stat"><strong id="nHosts">—</strong><span>host records</span></div>
+  <div class="stat"><strong id="nLinks">—</strong><span>associations</span></div>
+  <div class="stat"><strong id="nHostTaxa">—</strong><span>unique host taxa</span></div>
+</div>
+
+<label class="section" for="country">Country</label>
+<select id="country"><option value="">All countries</option></select>
+
+<label class="section" for="state">State / Province</label>
+<select id="state"><option value="">All states / provinces</option></select>
+
+<label class="section" for="hostCollection">Host collection</label>
+<select id="hostCollection"><option value="">All host collections</option></select>
+
+<label class="section" for="hostTaxon">Host taxon contains</label>
+<input id="hostTaxon" type="text" placeholder="e.g. Myodes rutilus">
+
+<label class="section" for="kingdom">Parasite kingdom</label>
+<select id="kingdom"><option value="">All kingdoms</option></select>
+
+<label class="section" for="phylum">Parasite phylum</label>
+<select id="phylum"><option value="">All phyla</option></select>
+
+<label class="section" for="pclass">Parasite class</label>
+<select id="pclass"><option value="">All classes</option></select>
+
+<label class="section" for="order">Parasite order</label>
+<select id="order"><option value="">All orders</option></select>
+
+<label class="section" for="family">Parasite family</label>
+<select id="family"><option value="">All families</option></select>
+
+<label class="section" for="genus">Parasite genus</label>
+<select id="genus"><option value="">All genera</option></select>
+
+<label class="section" for="species">Parasite species</label>
+<select id="species"><option value="">All species</option></select>
+
+<label class="section">Collection year</label>
+<div class="twocol">
+  <input id="y0" type="number" placeholder="Start year">
+  <input id="y1" type="number" placeholder="End year">
+</div>
+
+<label class="section" for="search">GUID / taxon search</label>
+<input id="search" type="text" placeholder="Host or parasite GUID / taxon">
+
 <button id="reset">Reset filters</button>
-<button id="download">Download Filtered Data</button>
+<button id="download" class="download">Download Filtered Data</button>
+<div id="resultNote" class="small" style="margin-top:8px"></div>
 
-<div class="warn small"><strong>Geographic provenance.</strong> Country, state/province, locality, and mapped coordinates in this release are derived from locality metadata associated with linked parasite records. They are not independently retrieved authoritative host metadata. Future releases will join host GUIDs directly to authoritative host records.</div>
+<div class="legend">
+  <div><span class="dot"></span>Host record</div>
+  <p class="small">Each mapped point represents one host record. Parasite and geographic filters retain hosts with at least one linked parasite record matching the active criteria.</p>
+</div>
 
-<details><summary><strong>About this atlas</strong></summary><p class="small">Each map point represents a host record linked to one or more independently cataloged parasite records. Filters retain hosts having at least one linked parasite record satisfying the active criteria. Absence of records should not be interpreted as biological absence.</p></details>
-</aside><div id="map"></div></div>
+<details class="legend">
+<summary><strong>Geographic provenance</strong></summary>
+<p class="small">Country, state/province, locality, coordinates, and coordinate uncertainty in this release are derived from locality metadata associated with linked parasite specimen records. They are not independently retrieved authoritative host metadata. Future releases will join host GUIDs directly to authoritative host records.</p>
+</details>
+
+<details class="legend">
+<summary><strong>Data interpretation</strong></summary>
+<p class="small">Museum records reflect collecting effort, geographic and temporal sampling, digitization, and taxonomic identification. Record density is not a direct measure of abundance or prevalence, and absence of records is not evidence of biological absence.</p>
+</details>
+</aside>
+
+<div id="map"></div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
 <script>
+let D=null;
+let hostRelationships=[];
+
 const $=id=>document.getElementById(id);
 const map=L.map("map").setView([39,-98],4);
-const osm=L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"&copy; OpenStreetMap contributors"}).addTo(map);
-const topo=L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",{attribution:"Map data &copy; OpenStreetMap contributors, SRTM | Map style &copy; OpenTopoMap"});
-L.control.layers({"OpenStreetMap":osm,"Topographic":topo}).addTo(map);
-const cluster=L.markerClusterGroup().addTo(map);
-let D;
 
-function vals(arr){return [...new Set(arr.filter(Boolean))].sort((a,b)=>a.localeCompare(b))}
-function fill(el,values,label){const old=el.value; el.innerHTML=`<option value="">${label}</option>`+values.map(v=>`<option>${v.replaceAll("&","&amp;").replaceAll("<","&lt;")}</option>`).join(""); if(values.includes(old))el.value=old}
-function linked(hid){return D.relations.filter(r=>r[0]===hid).map(r=>D.parasites[r[1]])}
-function geographyPass(p){
- if($("country").value && p.country!==$("country").value)return false;
- if($("state").value && p.state_province!==$("state").value)return false;
- return true;
+const streets=L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap contributors"});
+const topo=L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",{maxZoom:17,attribution:"Map data &copy; OpenStreetMap contributors | Map style &copy; OpenTopoMap"});
+const satellite=L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"Tiles &copy; Esri"});
+streets.addTo(map);
+L.control.layers({"Street Map":streets,"Topographic":topo,"Satellite":satellite}).addTo(map);
+
+const cluster=L.markerClusterGroup({chunkedLoading:true,showCoverageOnHover:false,maxClusterRadius:55});
+map.addLayer(cluster);
+
+function s(id){return id===-1||id===null||id===undefined?"":D.s[id]}
+
+// p positions must match process_compact_atlas.py.
+function parasite(pid){
+  const p=D.p[pid];
+  return {
+    guid:s(p[0]),name:s(p[1]),kingdom:s(p[2]),phylum:s(p[3]),pclass:s(p[4]),
+    order:s(p[5]),family:s(p[6]),genus:s(p[7]),species:s(p[8]),year:p[9],
+    country:s(p[10]),state:s(p[11]),locality:s(p[12]),lat:p[13],lon:p[14],
+    uncertainty:p[15],locationInHost:s(p[16]),lifeStage:s(p[17]),
+    sex:s(p[18]),count:s(p[19])
+  };
 }
-function parasitePass(p){
- if(!geographyPass(p))return false;
- if($("family").value && p.family!==$("family").value)return false;
- if($("genus").value && p.genus!==$("genus").value)return false;
- if($("species").value && p.species!==$("species").value)return false;
- const a=+$("y0").value,b=+$("y1").value;
- if(a && (!p.year||p.year<a))return false;if(b && (!p.year||p.year>b))return false;
- const q=$("q").value.trim().toLowerCase();
- if(q && ![p.guid,p.name,p.family,p.genus,p.species].join(" ").toLowerCase().includes(q))return false;
- return true;
+
+// h positions must match process_compact_atlas.py.
+function host(hid){
+  const h=D.h[hid];
+  return {
+    guid:s(h[0]),taxon:s(h[1]),collection:s(h[2]),group:s(h[3]),
+    lat:h[4],lon:h[5],country:s(h[6]),state:s(h[7]),locality:s(h[8])
+  };
 }
-function matching(hid){
- const h=D.hosts[hid], q=$("q").value.trim().toLowerCase();
- const ps=linked(hid).filter(parasitePass);
- if(ps.length)return ps;
- if(q && h.guid.toLowerCase().includes(q)){
-   return linked(hid).filter(p=>geographyPass(p) &&
-      (!$("family").value||p.family===$("family").value) &&
-      (!$("genus").value||p.genus===$("genus").value) &&
-      (!$("species").value||p.species===$("species").value));
- }
- return [];
+
+function esc(v){
+  return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
 }
+
+function fill(el,values,label){
+  const old=el.value;
+  const vals=[...new Set(values.filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  el.innerHTML=`<option value="">${label}</option>`;
+  vals.forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=v;el.appendChild(o)});
+  if(vals.includes(old))el.value=old;
+}
+
+function linked(hid){
+  return (hostRelationships[hid]||[]).map(ri=>parasite(D.r[ri][1]));
+}
+
+function geographyMatches(p){
+  if($("country").value && p.country!==$("country").value)return false;
+  if($("state").value && p.state!==$("state").value)return false;
+  return true;
+}
+
+function taxonomyMatches(p){
+  if($("kingdom").value && p.kingdom!==$("kingdom").value)return false;
+  if($("phylum").value && p.phylum!==$("phylum").value)return false;
+  if($("pclass").value && p.pclass!==$("pclass").value)return false;
+  if($("order").value && p.order!==$("order").value)return false;
+  if($("family").value && p.family!==$("family").value)return false;
+  if($("genus").value && p.genus!==$("genus").value)return false;
+  if($("species").value && p.species!==$("species").value)return false;
+  return true;
+}
+
+function yearMatches(p){
+  const a=Number($("y0").value), b=Number($("y1").value);
+  if(a && (p.year===-1 || p.year<a))return false;
+  if(b && (p.year===-1 || p.year>b))return false;
+  return true;
+}
+
+function matchingParasites(hid,includeSearch=true){
+  const h=host(hid);
+  if($("hostCollection").value && h.collection!==$("hostCollection").value)return [];
+  const ht=$("hostTaxon").value.trim().toLowerCase();
+  if(ht && !h.taxon.toLowerCase().includes(ht))return [];
+
+  let ps=linked(hid).filter(p=>geographyMatches(p)&&taxonomyMatches(p)&&yearMatches(p));
+
+  const q=$("search").value.trim().toLowerCase();
+  if(q && includeSearch){
+    if(`${h.guid} ${h.taxon}`.toLowerCase().includes(q))return ps;
+    ps=ps.filter(p=>`${p.guid} ${p.name} ${p.family} ${p.genus} ${p.species}`.toLowerCase().includes(q));
+  }
+  return ps;
+}
+
 function rebuildGeography(){
- const ps=D.parasites;
- fill($("country"),vals(ps.map(p=>p.country)),"All countries");
- const c=$("country").value;
- fill($("state"),vals(ps.filter(p=>!c||p.country===c).map(p=>p.state_province)),"All states / provinces");
+  const ps=D.p.map((_,i)=>parasite(i));
+  fill($("country"),ps.map(p=>p.country),"All countries");
+  const c=$("country").value;
+  fill($("state"),ps.filter(p=>!c||p.country===c).map(p=>p.state),"All states / provinces");
 }
-function rebuildTaxonomy(){
- let ps=D.parasites.filter(geographyPass);
- fill($("family"),vals(ps.map(p=>p.family)),"All families");
- if($("family").value)ps=ps.filter(p=>p.family===$("family").value);
- fill($("genus"),vals(ps.map(p=>p.genus)),"All genera");
- if($("genus").value)ps=ps.filter(p=>p.genus===$("genus").value);
- fill($("species"),vals(ps.map(p=>p.species)),"All species");
+
+function rebuildCollections(){
+  fill($("hostCollection"),D.h.map((_,i)=>host(i).collection),"All host collections");
 }
+
+function currentTaxonomyPool(){
+  let ps=D.p.map((_,i)=>parasite(i)).filter(geographyMatches);
+  return ps;
+}
+
+function rebuildTaxonomy(start="kingdom"){
+  const levels=["kingdom","phylum","pclass","order","family","genus","species"];
+  const labels={
+    kingdom:"All kingdoms",phylum:"All phyla",pclass:"All classes",
+    order:"All orders",family:"All families",genus:"All genera",species:"All species"
+  };
+  let ps=currentTaxonomyPool();
+
+  for(const level of levels){
+    if(level===start || levels.indexOf(level)>=levels.indexOf(start)){
+      fill($(level),ps.map(p=>p[level]),labels[level]);
+    }
+    const selected=$(level).value;
+    if(selected) ps=ps.filter(p=>p[level]===selected);
+  }
+}
+
+function popup(hid,ps){
+  const h=host(hid);
+  const first=ps[0];
+  const linkedHtml=ps.slice(0,30).map(p=>
+    `<div class="popup-section"><i>${esc(p.name||"Unidentified parasite")}</i><br>
+     <span class="popup-guid">${esc(p.guid)}</span><br>
+     <span class="small">${esc([p.family,p.order,p.pclass,p.phylum].filter(Boolean).join(" · "))}</span><br>
+     <a target="_blank" rel="noopener" href="https://arctos.database.museum/guid/${encodeURIComponent(p.guid)}">Open parasite in Arctos ↗</a></div>`
+  ).join("");
+
+  return `<b><i>${esc(h.taxon||"Host taxon not recorded")}</i></b><br>
+    <span class="popup-guid">${esc(h.guid)}</span>
+    <div class="popup-section"><b>Host collection:</b> ${esc(h.collection||"—")}<br>
+    <b>Matching parasite records:</b> ${ps.length.toLocaleString()}<br>
+    <b>Country:</b> ${esc(first?.country||h.country||"—")}<br>
+    <b>State/Province:</b> ${esc(first?.state||h.state||"—")}<br>
+    <b>Locality:</b> ${esc(first?.locality||h.locality||"—")}</div>
+    ${linkedHtml}
+    ${ps.length>30?'<div class="small">Showing first 30 matching parasite records.</div>':""}
+    <div class="popup-section"><a target="_blank" rel="noopener" href="https://arctos.database.museum/guid/${encodeURIComponent(h.guid)}">Open host in Arctos ↗</a></div>`;
+}
+
 function render(){
- cluster.clearLayers();let n=0;
- D.hosts.forEach((h,i)=>{
-   const ps=matching(i); if(!ps.length||h.latitude==null||h.longitude==null)return;
-   n++;
-   const p=ps[0];
-   L.marker([h.latitude,h.longitude]).bindPopup(
-     `<b>Host</b>: ${h.guid}<br><b>Country:</b> ${p.country||"—"}<br><b>State/Province:</b> ${p.state_province||"—"}<br><b>Locality:</b> ${p.locality||"—"}<hr><b>Matching parasites:</b> ${ps.length}<br>`+
-     ps.slice(0,15).map(x=>`${x.name||"Unidentified"} — ${x.guid}`).join("<br>")
-   ).addTo(cluster);
- });
- $("nVisible").textContent=n.toLocaleString();
+  if(!D)return;
+  cluster.clearLayers();
+  const markers=[];
+  let visible=0;
+  for(let hid=0;hid<D.h.length;hid++){
+    const ps=matchingParasites(hid);
+    if(!ps.length)continue;
+    const h=host(hid);
+    if(h.lat===null||h.lon===null)continue;
+    visible++;
+    const m=L.circleMarker([h.lat,h.lon],{radius:6,weight:1.5,color:"#fff",fillColor:"#2e7d4f",fillOpacity:.86});
+    m.bindPopup(popup(hid,ps));
+    markers.push(m);
+  }
+  cluster.addLayers(markers);
+  $("resultNote").textContent=`${visible.toLocaleString()} mapped hosts match the current filters.`;
 }
-function update(){rebuildTaxonomy();render()}
-$("country").onchange=()=>{ $("state").value=""; rebuildGeography(); update() };
-$("state").onchange=update;$("family").onchange=update;$("genus").onchange=update;$("species").onchange=render;
-$("y0").oninput=render;$("y1").oninput=render;$("q").oninput=render;
-$("reset").onclick=()=>{["country","state","family","genus","species","y0","y1","q"].forEach(x=>$(x).value="");rebuildGeography();rebuildTaxonomy();render()};
 
-$("download").onclick=()=>{
- const rows=[];
- D.hosts.forEach((h,i)=>matching(i).forEach(p=>rows.push({
-   host_guid:h.guid,host_collection:h.collection,
-   country:p.country,state_province:p.state_province,locality:p.locality,
-   latitude:p.latitude,longitude:p.longitude,coordinate_uncertainty_m:p.coordinate_uncertainty_m,
-   parasite_guid:p.guid,parasite_name:p.name,parasite_kingdom:p.kingdom,parasite_phylum:p.phylum,
-   parasite_class:p.class,parasite_order:p.order,parasite_family:p.family,parasite_genus:p.genus,
-   parasite_species:p.species,collection_year:p.year??"",location_in_host:p.location_in_host,
-   parasite_life_stage:p.life_stage,parasite_sex:p.sex,individual_count:p.individual_count
- })));
- if(!rows.length){alert("No records match the active filters.");return}
- const keys=Object.keys(rows[0]), esc=v=>`"${String(v??"").replaceAll('"','""')}"`;
- const csv=[keys.join(","),...rows.map(r=>keys.map(k=>esc(r[k])).join(","))].join("\n");
- const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
- a.download="kansas_host_parasite_atlas_filtered_associations.csv";a.click();URL.revokeObjectURL(a.href);
-};
+function resetLowerTaxonomy(level){
+  const levels=["kingdom","phylum","pclass","order","family","genus","species"];
+  const i=levels.indexOf(level);
+  levels.slice(i+1).forEach(x=>$(x).value="");
+}
 
-fetch("data/atlas.json").then(r=>{if(!r.ok)throw Error(r.status);return r.json()}).then(d=>{
- D=d;$("nHosts").textContent=D.hosts.length.toLocaleString();$("nParasites").textContent=D.parasites.length.toLocaleString();
- $("nLinks").textContent=D.relations.length.toLocaleString();
- const years=D.parasites.map(p=>p.year).filter(Boolean);if(years.length){$("y0").placeholder=Math.min(...years);$("y1").placeholder=Math.max(...years)}
- rebuildGeography();rebuildTaxonomy();render();
-}).catch(e=>{console.error(e);alert("The atlas data could not be loaded. Run through a web server or GitHub Pages.")});
-</script></body></html>
+function downloadFiltered(){
+  const rows=[];
+  for(let hid=0;hid<D.h.length;hid++){
+    const h=host(hid);
+    const ps=matchingParasites(hid);
+    for(const p of ps){
+      rows.push({
+        host_guid:h.guid,
+        host_taxon:h.taxon,
+        host_collection:h.collection,
+        country:p.country,
+        state_province:p.state,
+        locality:p.locality,
+        latitude:p.lat,
+        longitude:p.lon,
+        coordinate_uncertainty_m:p.uncertainty,
+        parasite_guid:p.guid,
+        parasite_name:p.name,
+        parasite_kingdom:p.kingdom,
+        parasite_phylum:p.phylum,
+        parasite_class:p.pclass,
+        parasite_order:p.order,
+        parasite_family:p.family,
+        parasite_genus:p.genus,
+        parasite_species:p.species,
+        collection_year:p.year===-1?"":p.year,
+        location_in_host:p.locationInHost,
+        parasite_life_stage:p.lifeStage,
+        parasite_sex:p.sex,
+        individual_count:p.count
+      });
+    }
+  }
+  if(!rows.length){alert("No host–parasite associations match the active filters.");return}
+  const keys=Object.keys(rows[0]);
+  const quote=v=>`"${String(v??"").replace(/"/g,'""')}"`;
+  const csv="\uFEFF"+[keys.join(","),...rows.map(r=>keys.map(k=>quote(r[k])).join(","))].join("\n");
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download="kansas_host_parasite_atlas_filtered_associations.csv";
+  document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+}
+
+$("country").addEventListener("change",()=>{$("state").value="";rebuildGeography();rebuildTaxonomy("kingdom");render()});
+$("state").addEventListener("change",()=>{rebuildTaxonomy("kingdom");render()});
+$("hostCollection").addEventListener("change",render);
+$("hostTaxon").addEventListener("input",render);
+["kingdom","phylum","pclass","order","family","genus"].forEach(level=>{
+  $(level).addEventListener("change",()=>{resetLowerTaxonomy(level);const levels=["kingdom","phylum","pclass","order","family","genus","species"];rebuildTaxonomy(levels[Math.min(levels.indexOf(level)+1,levels.length-1)]);render()});
+});
+$("species").addEventListener("change",render);
+$("y0").addEventListener("input",render);$("y1").addEventListener("input",render);
+$("search").addEventListener("input",render);
+$("download").addEventListener("click",downloadFiltered);
+
+$("reset").addEventListener("click",()=>{
+  ["country","state","hostCollection","hostTaxon","kingdom","phylum","pclass","order","family","genus","species","y0","y1","search"].forEach(id=>$(id).value="");
+  rebuildGeography();rebuildCollections();rebuildTaxonomy("kingdom");render();
+});
+
+fetch("data/atlas.json").then(r=>{
+  if(!r.ok)throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}).then(data=>{
+  D=data;
+  hostRelationships=Array.from({length:D.h.length},()=>[]);
+  D.r.forEach((r,i)=>hostRelationships[r[0]].push(i));
+
+  $("nParasites").textContent=D.p.length.toLocaleString();
+  $("nHosts").textContent=D.h.length.toLocaleString();
+  $("nLinks").textContent=D.r.length.toLocaleString();
+  $("nHostTaxa").textContent=D.summary.unique_host_taxa.toLocaleString();
+
+  if(D.summary.min_year)$("y0").placeholder=D.summary.min_year;
+  if(D.summary.max_year)$("y1").placeholder=D.summary.max_year;
+
+  rebuildGeography();rebuildCollections();rebuildTaxonomy("kingdom");
+
+  const coords=D.h.filter(h=>h[4]!==null&&h[5]!==null).map(h=>[h[4],h[5]]);
+  if(coords.length)map.fitBounds(L.latLngBounds(coords).pad(.02));
+
+  render();
+}).catch(err=>{
+  console.error(err);
+  $("loadError").style.display="block";
+});
+</script>
+</body>
+</html>

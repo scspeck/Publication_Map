@@ -145,3 +145,18 @@ A planned future release will use each host GUID to retrieve and join the
 authoritative host specimen record. That workflow will allow host taxonomy,
 geography, dates, and other host metadata to be derived directly from the host
 record while preserving the parasite record as an independently cataloged object.
+
+
+## Compact geography architecture (release 0.9.2)
+
+Release 0.9.2 restores the shared-string compact representation for geography.
+Country, state/province, locality, specimen GUIDs, taxonomic labels, and other
+repeated text values are stored once in the shared string table and referenced
+by integer ID.
+
+The resulting `data/atlas.json` is approximately **8.22 MB**
+uncompressed while retaining Country → State/Province filtering and geographic
+fields in the filtered CSV download.
+
+The geographic provenance is unchanged from release 0.9.1: geography is derived
+from linked parasite records pending future authoritative-host integration.

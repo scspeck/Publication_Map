@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.2-development] - 2026-08-20
+
+### Changed
+- Replaced verbose geography JSON objects with the compact shared-string relational architecture.
+- Country, state/province, locality, taxonomy, and GUID strings are stored once and referenced by integer IDs.
+- Preserved Country → State/Province filtering.
+- Preserved host-centered map behavior and filtered CSV downloads.
+- Preserved parasite-record geographic provenance and future authoritative-host integration plan.
+
+### Result
+- `atlas.json`: approximately 8.22 MB uncompressed.
+
 ## [0.9.1-development] - 2026-08-20
 ### Added
 - Country filter derived from parasite-record geography.
