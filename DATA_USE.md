@@ -1,6 +1,6 @@
 # Data Use and Attribution
 
-The Kansas Host–Parasite Atlas is a derived discovery and visualization product built from natural history collection records.
+The Kansas State Biorepository Host-Parasite Atlas is a derived discovery and visualization product built from natural history collection records.
 
 ## Authoritative records
 
