@@ -1,6 +1,9 @@
 {
-  "source_file": "catalog_record_summary (14)(1).csv",
-  "parasite_records_with_host_relationships": 51376,
+  "source_records": 53870,
+  "records_with_parasite_of_relationship": 51505,
+  "host_linked_parasite_records": 51376,
+  "parasite_of_relationships_without_resolvable_host_guid": 129,
+  "records_without_resolvable_parasite_of_host_guid": 2494,
   "unique_hosts": 30906,
   "host_parasite_associations": 51864,
   "unique_host_taxa": 1502,
@@ -9,5 +12,6 @@
   "min_year": 1800,
   "max_year": 2025,
   "geography_provenance": "Country, state/province, locality, coordinates, and coordinate uncertainty are derived from linked parasite records in this release.",
+  "relationship_provenance": "Only parasite-of relationships containing resolvable Arctos-style host GUIDs are incorporated into the host-centered atlas. Relationships expressed only through other identifiers are reported separately.",
   "future_development": "Retrieve authoritative host records by host GUID and use authoritative host taxonomy, geography, dates, and additional host metadata."
 }
