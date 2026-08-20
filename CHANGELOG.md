@@ -40,10 +40,6 @@
 Geography in this release is derived from linked parasite records. Authoritative
 host-record integration remains planned for a future release.
 
-# Changelog
-
-All notable changes to the Kansas Host–Parasite Atlas should be documented here. Version the atlas using tagged releases so analyses can be tied to a specific data/software snapshot.
-
 ## [0.9.0-development] - 2026-08-18
 
 ### Added
