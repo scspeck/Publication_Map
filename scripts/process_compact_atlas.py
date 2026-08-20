@@ -104,9 +104,29 @@ parasites = []
 hosts_temp = {}
 relationships = []
 
+source_record_count = len(df)
+parasite_of_record_count = 0
+unresolved_relationship_rows = []
+
 for _, row in df.iterrows():
     pguid = clean(row.get("GUID",""))
-    hguids = host_guids(row.get("RELATEDCATALOGEDITEMS",""))
+    relationship_text = clean(row.get("RELATEDCATALOGEDITEMS",""))
+
+    if re.search(r'parasite\s+of', relationship_text, re.I):
+        parasite_of_record_count += 1
+
+    hguids = host_guids(relationship_text)
+
+    # Some Arctos records contain a "parasite of" relationship expressed only
+    # as an institutional catalog number, collector number, ARK, or other
+    # identifier rather than a resolvable Arctos GUID. We retain an audit list
+    # but do not invent a host GUID for those records.
+    if pguid and re.search(r'parasite\s+of', relationship_text, re.I) and not hguids:
+        unresolved_relationship_rows.append({
+            "parasite_guid": pguid,
+            "related_cataloged_items": relationship_text
+        })
+
     if not pguid or not hguids:
         continue
 
@@ -248,8 +268,13 @@ states = sorted({
 years = [p[9] for p in parasites if p[9] != -1]
 
 summary = {
-    "source_file": src.name,
-    "parasite_records_with_host_relationships": len(parasites),
+    "source_records": source_record_count,
+    "records_with_parasite_of_relationship": parasite_of_record_count,
+    "host_linked_parasite_records": len(parasites),
+    "parasite_of_relationships_without_resolvable_host_guid":
+        len(unresolved_relationship_rows),
+    "records_without_resolvable_parasite_of_host_guid":
+        source_record_count - len(parasites),
     "unique_hosts": len(hosts),
     "host_parasite_associations": len(rels),
     "unique_host_taxa": len({
@@ -262,10 +287,21 @@ summary = {
     "geography_provenance":
         "Country, state/province, locality, coordinates, and coordinate "
         "uncertainty are derived from linked parasite records in this release.",
+    "relationship_provenance":
+        "Only parasite-of relationships containing resolvable Arctos-style "
+        "host GUIDs are incorporated into the host-centered atlas. Relationships "
+        "expressed only through other identifiers are reported separately.",
     "future_development":
         "Retrieve authoritative host records by host GUID and use authoritative "
         "host taxonomy, geography, dates, and additional host metadata."
 }
+
+# Write an audit file for parasite-of relationships that cannot currently be
+# resolved to an Arctos-style host GUID.
+pd.DataFrame(unresolved_relationship_rows).to_csv(
+    out/"unresolved_host_relationships.csv",
+    index=False
+)
 
 atlas = {
     "s": strings,
