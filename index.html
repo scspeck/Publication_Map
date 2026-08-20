@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Kansas State Biorepository Host-Parasite Atlas</title>
+<title>Kansas Host–Parasite Atlas</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nouislider@15.8.1/dist/nouislider.min.css">
 
 <style>
 :root{--border:#d9e0e4;--muted:#68737a;--panel:#fff;--bg:#f3f5f6;--text:#1d252c;--host:#2e7d4f}
@@ -23,6 +24,12 @@ h1{font-size:1.4rem;margin:0 0 4px}.subtitle{color:var(--muted);font-size:.85rem
 label.section{display:block;font-weight:700;font-size:.84rem;margin:14px 0 5px}
 select,input[type=text],input[type=number]{width:100%;padding:8px 9px;border:1px solid #bac4ca;border-radius:6px;background:#fff}
 .twocol{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.year-values{display:flex;justify-content:space-between;margin:4px 0 6px;font-weight:700;font-size:.82rem}
+#yearSlider{margin:18px 11px 20px}
+.noUi-connect{background:#687680}
+.noUi-horizontal{height:8px}
+.noUi-horizontal .noUi-handle{width:20px;height:20px;right:-10px;top:-7px;border-radius:50%;cursor:grab}
+.noUi-handle::before,.noUi-handle::after{display:none}
 button{padding:9px 10px;border:0;border-radius:6px;cursor:pointer;width:100%;margin-top:10px}
 #reset{background:#29353d;color:#fff}.download{background:#ededed;color:#111}
 .small{color:var(--muted);font-size:.75rem;line-height:1.45}
@@ -37,18 +44,21 @@ details summary{cursor:pointer}a{color:#245d8c}
 </head>
 <body>
 <aside>
-<h1>Kansas State Biorepository Host-Parasite Atlas</h1>
+<h1>Kansas Host–Parasite Atlas</h1>
 <div class="subtitle">
-An interactive, specimen-based resource for exploring host-parasite associations represented in natural history collections.
+An interactive, specimen-based resource for exploring host–parasite associations represented in natural history collections.
 </div>
 
 <div id="loadError">The data file could not be loaded. Use GitHub Pages or a local web server.</div>
 
 <div class="stats">
-  <div class="stat"><strong id="nParasites">—</strong><span>parasite records</span></div>
+  <div class="stat"><strong id="nSource">—</strong><span>source parasite records</span></div>
+  <div class="stat"><strong id="nParasites">—</strong><span>host-linked parasite records</span></div>
   <div class="stat"><strong id="nHosts">—</strong><span>host records</span></div>
-  <div class="stat"><strong id="nLinks">—</strong><span>associations</span></div>
-  <div class="stat"><strong id="nHostTaxa">—</strong><span>unique host taxa</span></div>
+  <div class="stat"><strong id="nLinks">—</strong><span>host–parasite associations</span></div>
+</div>
+<div class="small" style="margin-top:-10px;margin-bottom:15px">
+  <span id="relationshipAccounting"></span>
 </div>
 
 <label class="section" for="country">Country</label>
@@ -85,10 +95,11 @@ An interactive, specimen-based resource for exploring host-parasite associations
 <select id="species"><option value="">All species</option></select>
 
 <label class="section">Collection year</label>
-<div class="twocol">
-  <input id="y0" type="number" placeholder="Start year">
-  <input id="y1" type="number" placeholder="End year">
+<div class="year-values">
+  <span id="startYearLabel">—</span>
+  <span id="endYearLabel">—</span>
 </div>
+<div id="yearSlider"></div>
 
 <label class="section" for="search">GUID / taxon search</label>
 <input id="search" type="text" placeholder="Host or parasite GUID / taxon">
@@ -99,7 +110,7 @@ An interactive, specimen-based resource for exploring host-parasite associations
 
 <div class="legend">
   <div><span class="dot"></span>Host record</div>
-  <p class="small">Each mapped point represents one host record. Parasite and geographic filters retain hosts with at least one linked parasite record matching the active filtering criteria.</p>
+  <p class="small">Each mapped point represents one host record. Parasite and geographic filters retain hosts with at least one linked parasite record matching the active criteria.</p>
 </div>
 
 <details class="legend">
@@ -117,6 +128,7 @@ An interactive, specimen-based resource for exploring host-parasite associations
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/nouislider@15.8.1/dist/nouislider.min.js"></script>
 
 <script>
 let D=null;
@@ -190,11 +202,15 @@ function taxonomyMatches(p){
   return true;
 }
 
+function yearBounds(){
+  const vals=$("yearSlider").noUiSlider.get();
+  return [Math.round(Number(vals[0])),Math.round(Number(vals[1]))];
+}
+
 function yearMatches(p){
-  const a=Number($("y0").value), b=Number($("y1").value);
-  if(a && (p.year===-1 || p.year<a))return false;
-  if(b && (p.year===-1 || p.year>b))return false;
-  return true;
+  const [a,b]=yearBounds();
+  if(p.year===-1)return false;
+  return p.year>=a && p.year<=b;
 }
 
 function matchingParasites(hid,includeSearch=true){
@@ -345,12 +361,12 @@ $("hostTaxon").addEventListener("input",render);
   $(level).addEventListener("change",()=>{resetLowerTaxonomy(level);const levels=["kingdom","phylum","pclass","order","family","genus","species"];rebuildTaxonomy(levels[Math.min(levels.indexOf(level)+1,levels.length-1)]);render()});
 });
 $("species").addEventListener("change",render);
-$("y0").addEventListener("input",render);$("y1").addEventListener("input",render);
 $("search").addEventListener("input",render);
 $("download").addEventListener("click",downloadFiltered);
 
 $("reset").addEventListener("click",()=>{
-  ["country","state","hostCollection","hostTaxon","kingdom","phylum","pclass","order","family","genus","species","y0","y1","search"].forEach(id=>$(id).value="");
+  ["country","state","hostCollection","hostTaxon","kingdom","phylum","pclass","order","family","genus","species","search"].forEach(id=>$(id).value="");
+  $("yearSlider").noUiSlider.set([D.summary.min_year,D.summary.max_year]);
   rebuildGeography();rebuildCollections();rebuildTaxonomy("kingdom");render();
 });
 
@@ -362,13 +378,28 @@ fetch("data/atlas.json").then(r=>{
   hostRelationships=Array.from({length:D.h.length},()=>[]);
   D.r.forEach((r,i)=>hostRelationships[r[0]].push(i));
 
-  $("nParasites").textContent=D.p.length.toLocaleString();
+  $("nSource").textContent=D.summary.source_records.toLocaleString();
+  $("nParasites").textContent=D.summary.host_linked_parasite_records.toLocaleString();
   $("nHosts").textContent=D.h.length.toLocaleString();
   $("nLinks").textContent=D.r.length.toLocaleString();
-  $("nHostTaxa").textContent=D.summary.unique_host_taxa.toLocaleString();
 
-  if(D.summary.min_year)$("y0").placeholder=D.summary.min_year;
-  if(D.summary.max_year)$("y1").placeholder=D.summary.max_year;
+  $("relationshipAccounting").textContent =
+    `${D.summary.records_with_parasite_of_relationship.toLocaleString()} source records contain a "parasite of" relationship; ` +
+    `${D.summary.parasite_of_relationships_without_resolvable_host_guid.toLocaleString()} of those use a non-GUID host identifier and are not currently mapped.`;
+
+  noUiSlider.create($("yearSlider"),{
+    start:[D.summary.min_year,D.summary.max_year],
+    connect:true,
+    step:1,
+    range:{min:D.summary.min_year,max:D.summary.max_year},
+    format:{to:v=>Math.round(v),from:v=>Number(v)}
+  });
+
+  $("yearSlider").noUiSlider.on("update",values=>{
+    $("startYearLabel").textContent=Math.round(Number(values[0]));
+    $("endYearLabel").textContent=Math.round(Number(values[1]));
+    render();
+  });
 
   rebuildGeography();rebuildCollections();rebuildTaxonomy("kingdom");
 

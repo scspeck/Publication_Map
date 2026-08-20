@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.9.3-development] - 2026-08-20
+
+### Changed
+- Restored the dual-handle collection-year slider.
+- Distinguished total source parasite records from host-linked parasite records.
+- Added transparent accounting for parasite-of relationships lacking resolvable Arctos host GUIDs.
+- Added `data/unresolved_host_relationships.csv` for audit instead of inventing host identifiers.
+
+### Record accounting
+- Source parasite records: 53,870
+- Records containing `parasite of`: 51,505
+- Host-linked parasite records: 51,376
+- `parasite of` records without resolvable host GUID: 129
+- Unique hosts: 30,906
+- Host–parasite associations: 51,864
+
 ## [0.9.2-development] - 2026-08-20
 
 ### Changed

@@ -69,3 +69,13 @@ tens of thousands of authoritative host records. It should not be interpreted as
 independent validation of host locality metadata. Future development will retrieve
 authoritative host records by GUID and join host-level taxonomy, locality, date,
 and georeferencing metadata directly to the relational dataset.
+
+
+## Relationship resolution
+
+Only explicit `parasite of` relationships containing a resolvable Arctos-style
+host GUID are incorporated into the host-centered relational dataset. Records in
+which the relationship is expressed only through another identifier are retained
+in an audit table rather than being assigned an inferred or constructed GUID.
+This distinction allows the complete source-record accounting to remain
+transparent and prevents unverified host identities from entering the map.

@@ -160,3 +160,21 @@ fields in the filtered CSV download.
 
 The geographic provenance is unchanged from release 0.9.1: geography is derived
 from linked parasite records pending future authoritative-host integration.
+
+
+## Source-record accounting (release 0.9.3)
+
+The Arctos export used for this build contains **53,870**
+parasite records. Of these, **51,505**
+contain a `parasite of` relationship. The host-centered atlas incorporates
+**51,376** parasite records for which that
+relationship contains a resolvable Arctos-style host GUID.
+
+An additional **129**
+records contain a `parasite of` relationship expressed through another identifier
+(e.g., institutional catalog number, collector number, ARK, or bare identifier)
+rather than a resolvable Arctos host GUID. These are not assigned invented host
+identifiers and are excluded from the mapped host-centered associations. They are
+listed in `data/unresolved_host_relationships.csv` for audit and future resolution.
+
+The dual-handle collection-year slider has also been restored.
